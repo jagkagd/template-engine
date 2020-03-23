@@ -3,7 +3,7 @@ from node import *
 
 kws = ['for', 'if', 'and', 'or', 'not', 'endif', 'endfor', 'elif', 'else']
 
-name = sat(lambda x: x not in kws)
+name = sat(lambda x: (x not in kws) and (x != ':'))
 
 @Parser
 def tree(s):
@@ -11,9 +11,13 @@ def tree(s):
 
 @Parser
 def node(s):
-    return (raw + pipeline + stmt)(s)
+    return (raw + pipeline + stmt + comment)(s)
 
-raw = sat(lambda x: x[0] == '<') >> (lambda x: Raw(x))
+
+comment = bracket(word('{#'), item, word('#}')) \
+          >> (lambda x: Parser.unit(Comment(x)))
+
+raw = sat(lambda x: x[0] != '{') >> (lambda x: Parser.unit(Raw(x)))
 
 evar = name >> (lambda x: Parser.unit(EVar(x)))
 
@@ -31,13 +35,15 @@ params = \
 
 efilter = \
     word('|')      >= \
-    evar           >> (lambda x:
+    expression     >> (lambda x:
     zerone(params) >> (lambda params:
-    Parser.unit(EFilter(x, xs))))
+    Parser.unit(EFilter(x, params))))
 
 pipeline = \
+    word('{{')    >= \
     expression    >> (lambda x:
     many(efilter) >> (lambda xs:
+    word('}}')    >=
     Parser.unit(Pipeline(x, xs))))
 
 @Parser
@@ -62,31 +68,28 @@ bnot = \
     Parser.unit(BNot(a)))
 
 cbranches = \
-    bools >> (lambda predict:
-    word(':') >=
-    tree >> (lambda context:
+    bools      >> (lambda predict:
+    word('%}') >=
+    tree       >> (lambda context:
     Parser.unit([(predict, context)])))
 
-celse = word('else') >= word(':') >> node
+celse = words('{% else %}') >> node
 
 cif = \
-    word('if')                     >= \
-    sepby(cbranches, word('elif') >= word(':')) >> (lambda branches:
-    zerone(celse)                  >> (lambda default:
-    word('endif')                  >=
+    words('{% if')                     >= \
+    sepby(cbranches, words('{% elif')) >> (lambda branches:
+    zerone(celse)                      >> (lambda default:
+    words('{% endif %}')               >=
     Parser.unit(CIf(branches, default))))
 
 cfor = \
-    word('for')             >= \
+    words('{% for')         >= \
     sepby1(evar, word(',')) >> (lambda xs:
     word('in')              >=
     expression              >> (lambda y:
-    word(':')               >=
+    word('%}')              >=
     tree                    >> (lambda c:
-    word('endfor')          >=
+    words('{% endfor %}') >=
     Parser.unit(CFor(xs, y, c)))))
     
 stmt = cfor + cif
-
-print(celse(['else', ':', 'cc']))
-print(node(['aa', '.', 'bb']))

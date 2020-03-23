@@ -1,11 +1,57 @@
 from pymonad.Monad import Monad
 from pymonad.Monoid import Monoid
-from typing import Any, Callable, List, Tuple
+from pymonad.Either import Either, Result, Error
+from pymonad.List import List as mList
+from typing import Callable, List
+from functools import reduce
 
 Tokens = List[str]
-ParserRes = List[Tuple[Any, Tokens]]
+ParserRes = 'Monad[Tuple[a, Tokens]]'
 ParserFun = Callable[[Tokens], ParserRes]
 
+class EitherMonoid(Either, Monoid):
+    @classmethod
+    def mzero(cls, msg=None):
+        return Err(msg)
+
+    @classmethod
+    def unit(cls, value):
+        return Res(value)
+
+
+class Res(EitherMonoid, Result):
+    def mplus(self, other):
+        return self
+
+
+class Err(EitherMonoid, Error):
+    def mplus(self, other):
+        return other
+
+class newList(mList):
+    @staticmethod
+    def mzero(err):
+        """ Returns the identity element (an empty List) of the List monoid.  """
+        return newList()
+
+
+def MetaParser(m):
+    def wrapper(cls):
+        cls.m = m
+
+        def unit(cls, c) -> 'Parser':
+            return Parser(lambda x: m.unit((c, x)))
+
+        def mzero(cls, err):
+            return Parser(lambda x: m.mzero(err))
+
+        cls.unit = classmethod(unit)
+        cls.mzero = classmethod(mzero)
+
+        return cls
+    return wrapper
+
+@MetaParser(EitherMonoid)
 class Parser(Monad, Monoid):
     def __init__(self, parsec: ParserFun):
         self.parsec = parsec
@@ -13,49 +59,41 @@ class Parser(Monad, Monoid):
     def __call__(self, s: Tokens) -> ParserRes:
         return self.parsec(s)
 
-    def fmap(self, f: Callable[[Any], Any]) -> 'Parser':
-        def foo(x: str) -> ParserRes:
-            res = self.parsec(x)
-            return [(f(item[0]), item[1]) for item in res] if res else []
-        return Parser(foo)
-
-    @staticmethod
-    def unit(c) -> 'Parser':
-        return Parser(lambda x: [(c, x)])
-
-    def amap(self, f):
-        raise NotImplementedError()
-
-    def bind(self, f: Callable[[Any], 'Parser']) -> 'Parser':
-        def _bind(x):
-            return sum([f(item[0])(item[1]) for item in self.parsec(x)], [])
-        return Parser(_bind)
-    
     def __ge__(self, other):
         return self >> (lambda _: other)
 
-    @staticmethod
-    def mzero():
-        return Parser(lambda x: [])
+    def bind(self, f: r'\a -> (\s -> m (b, s))') -> r'\s -> m (b, s)':
+        def _bind(x):
+            def _f(a):
+                return f(a[0])(a[1])
+            return self.parsec(x) >> _f
+        return Parser(_bind)
 
     def mplus(self, other):
         return Parser(lambda x: self.parsec(x) + other(x))
     
 @Parser
 def item(x):
-    return [(x[0], x[1:])] if x else []
+    return Parser.m.unit((x[0], x[1:])) if x else Parser.m.mzero('empty input.')
 
 def sat(predict):
     @Parser
     def call(x):
-        return Parser.unit(x) if predict(x) else Parser.mzero()
+        return Parser.unit(x) if predict(x) else Parser.mzero('no satisfied.')
     return item >> call
 
 def word(kw):
-    return sat(lambda x: x == kw)
+    @Parser
+    def call(x):
+        return Parser.unit(x) if x == kw else Parser.mzero('expect {} but got {}.'.format(kw, x))
+    return item >> call
+
+def words(kws):
+    tokens = kws.split(' ')
+    return reduce(lambda x, y: x >= y, [word(kw) for kw in tokens])
 
 def zerone(p):
-    return (p >> (lambda x: Parser.unit(x))) + Parser.mzero()
+    return (p >> (lambda x: Parser.unit([x]))) + Parser.unit([])
 
 def many(p):
     return \

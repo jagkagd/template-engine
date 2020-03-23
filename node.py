@@ -1,28 +1,21 @@
 from dataclasses import dataclass
-from typing import Any, Callable, List, Tuple, Union
+from typing import List, Tuple, Union
 from functools import reduce
 
 @dataclass
-class Tree():
+class Tree:
     nodes: List['Node']
-    def compile(self, writer, context):
-        for item in self.seq:
-            writer << item
-        return writer
-    def visit(self, context):
-        for item in self.seq:
-            item.visit(context)
-        return context
 
 @dataclass
 class Node:
-    pass
+
+@dataclass
+class Comment(Node):
+    comment: str
 
 @dataclass
 class Raw(Node):
     raw: str
-    def compile(self, writer):
-        return writer << self.raw
 
 @dataclass
 class Pipeline(Node):
