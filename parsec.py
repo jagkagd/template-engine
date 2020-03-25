@@ -76,10 +76,10 @@ class Parser(Monad, Monoid):
 def item(x):
     return Parser.m.unit((x[0], x[1:])) if x else Parser.m.mzero('empty input.')
 
-def sat(predict):
+def sat(predict, msg=r'{} is not satisfied.'):
     @Parser
     def call(x):
-        return Parser.unit(x) if predict(x) else Parser.mzero('no satisfied.')
+        return Parser.unit(x) if predict(x) else Parser.mzero(msg.format(x))
     return item >> call
 
 def word(kw):

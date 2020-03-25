@@ -1,9 +1,11 @@
 from parsec import *
 from node import *
+import re
 
 kws = ['for', 'if', 'and', 'or', 'not', 'endif', 'endfor', 'elif', 'else']
 
-name = sat(lambda x: (x not in kws) and (x != ':'))
+name = sat(lambda x: (x not in kws) and re.match(r"[_a-zA-Z][_a-zA-Z0-9]*$", x),
+           '{} is not a valid variable name.')
 
 @Parser
 def tree(s):
@@ -17,7 +19,8 @@ def node(s):
 comment = bracket(word('{#'), item, word('#}')) \
           >> (lambda x: Parser.unit(Comment(x)))
 
-raw = sat(lambda x: x[0] != '{') >> (lambda x: Parser.unit(Raw(x)))
+raw = sat(lambda x: x[0] != r'{', r'{} is started with "{{" in raw.') \
+      >> (lambda x: Parser.unit(Raw(x)))
 
 evar = name >> (lambda x: Parser.unit(EVar(x)))
 
@@ -57,9 +60,9 @@ band = \
     Parser.unit(BAnd(a, b))))
 
 bor = \
-    word('or')  >= \
-    bools       >> (lambda a:
-    bools       >> (lambda b:
+    word('or') >= \
+    bools      >> (lambda a:
+    bools      >> (lambda b:
     Parser.unit(BOr(a, b))))
 
 bnot = \
@@ -71,7 +74,7 @@ cbranches = \
     bools      >> (lambda predict:
     word('%}') >=
     tree       >> (lambda context:
-    Parser.unit([(predict, context)])))
+    Parser.unit((predict, context))))
 
 celse = words('{% else %}') >> node
 
