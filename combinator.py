@@ -20,7 +20,7 @@ comment = bracket(word('{#'), item, word('#}')) \
           >> (lambda x: Parser.unit(Comment(x)))
 
 raw = sat(lambda x: x[0] != r'{', r'{} is started with "{{" in raw.') \
-      >> (lambda x: Parser.unit(Raw(x)))
+      >> (lambda x: Parser.unit(Raw(repr(x))))
 
 evar = name >> (lambda x: Parser.unit(EVar(x)))
 
@@ -40,7 +40,7 @@ efilter = \
     word('|')      >= \
     expression     >> (lambda x:
     zerone(params) >> (lambda params:
-    Parser.unit(EFilter(x, params))))
+    Parser.unit(EFilter(x, sum(params, [])))))
 
 pipeline = \
     word('{{')    >= \
