@@ -13,7 +13,7 @@ def tree(s):
 
 @Parser
 def node(s):
-    return (raw + pipeline + stmt + comment)(s)
+    return (raw + pipeline + comment + stmt)(s)
 
 
 comment = bracket(word('{#'), item, word('#}')) \
@@ -96,3 +96,6 @@ cfor = \
     Parser.unit(CFor(xs, y, c)))))
     
 stmt = cfor + cif
+
+# ['<h1> Hello ', '{{', 'name', '|', 'a', '.', 'upper', '|', 'bb', ':', '"', '3', ',', '0', '"', '}}', '!</h1>\n            ', '{%', 'for', 'topic', 'in', 'topics', '%}', '\n                ', '{%', 'if', 'not', 'topic', '%}', '\n                    <p>You are interested in ', '{{', 'topic', '}}', '.</p>\n                ', '{%', 'endif', '%}', '\n            {% endfor }\n            ', '{#', 'aaa', '#}', '\n            ']
+# print(tree(['{%', 'for', 'topic', 'in', 'topics', '%}', '\n                ', '{%', 'if', 'not', 'topic', '%}', '\n                    <p>You are interested in ', '{{', 'topic', '}}', '.</p>\n                ', '{%', 'endif', '%}', '\n            ', '{%',  'endfor',  '}', '\n            ']))

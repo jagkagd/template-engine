@@ -1,7 +1,6 @@
 from pymonad.Monad import Monad
 from pymonad.Monoid import Monoid
 from pymonad.Either import Either, Result, Error
-#from pymonad.List import List as mList
 from functools import reduce
 
 
@@ -22,16 +21,12 @@ class Res(EitherMonoid, Result):
 
 class Err(EitherMonoid, Error):
     def mplus(self, other):
-        return other
-
-'''
-class newList(mList):
-    @staticmethod
-    def mzero(err):
-        """ Returns the identity element (an empty List) of the List monoid.  """
-        return newList()
-'''
-
+        if isinstance(other, Err):
+            p1, _ = self.getValue()
+            p2, _ = other.getValue()
+            return self if p1 > p2 else other
+        else:
+            return other
 
 def MetaParser(m):
     def wrapper(cls):
@@ -64,7 +59,9 @@ class Parser(Monad, Monoid):
 
     def bind(self, f: r'\a -> (\s -> m (b, s))') -> r'\s -> m (b, s)':
         def _bind(x):
-            return self.parsec(x) >> (lambda a: f(a[0])(a[1]))
+            def _f(a):
+                return f(a[0])(a[1])
+            return self.parsec(x) >> _f
         return Parser(_bind)
 
     def mplus(self, other):
@@ -72,21 +69,30 @@ class Parser(Monad, Monoid):
 
 
 @Parser
+def getPos(x):
+    p, s = x
+    return Parser.m.unit((p, (p, s)))
+
+
+@Parser
 def item(x):
-    return Parser.m.unit((x[0], x[1:])) if x else Parser.m.mzero('empty input.')
+    p, s = x
+    return Parser.m.unit((s[0], (p+1, s[1:]))) if s else Parser.m.mzero((-1, 'empty input.'))
 
 
 def sat(predict, msg=r'{} is not satisfied.'):
     @Parser
     def call(x):
-        return Parser.unit(x) if predict(x) else Parser.mzero(msg.format(x))
+        return Parser.unit(x) if predict(x) else \
+            getPos >> (lambda p: Parser.mzero((p, msg.format(x))))
     return item >> call
 
 
 def word(kw):
     @Parser
     def call(x):
-        return Parser.unit(x) if x == kw else Parser.mzero('expect {} but got {}.'.format(kw, x))
+        return Parser.unit(x) if x == kw else \
+            getPos >> (lambda p: Parser.mzero((p, 'expected "{}" but got "{}"'.format(kw, x))))
     return item >> call
 
 
