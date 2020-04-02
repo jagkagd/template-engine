@@ -43,23 +43,6 @@ class Raw(Node):
         return writer * self.raw
 
 
-@dataclass
-class Pipeline(Node):
-    expr: 'Expression'
-    filters: List['EFilter']
-
-    def compile(self, writer):
-        code = self.expr.repr()
-        for filter in self.filters:
-            code = filter.repr(code)
-        return writer * code
-
-    def context(self, contexter):
-        contexter << self.expr
-        for filter in self.filters:
-            contexter << filter
-        return contexter
-
 
 @dataclass
 class Bools:
@@ -99,7 +82,28 @@ class BNot(Bools):
 
 
 @dataclass
-class Expression(Bools):
+class Pipeline(Node, Bools):
+    expr: 'Expression'
+    filters: List['EFilter']
+
+    def repr(self):
+        code = self.expr.repr()
+        for filter in self.filters:
+            code = filter.repr(code)
+        return code
+
+    def compile(self, writer):
+        return writer * 'to_str({})'.format(self.repr())
+
+    def context(self, contexter):
+        contexter << self.expr
+        for filter in self.filters:
+            contexter << filter
+        return contexter
+
+
+@dataclass
+class Expression():
     def compile(self, writer):
         return writer + self.repr
 
@@ -112,7 +116,7 @@ class EVar(Expression):
     var: str
     free: bool = False
 
-    def repr(self):
+    def repr(self, filter='False'):
         return ('c_{}' if self.free else '{}').format(self.var)
 
     def context(self, contexter):
@@ -125,10 +129,12 @@ class EVar(Expression):
 @dataclass
 class EDict(Expression):
     var: EVar
-    attr: Union[str, int]
+    attrs: List[Union[str, int]]
 
-    def repr(self):
-        return '{}.{}'.format(self.var.repr(), self.attr)
+    def repr(self, filter='False'):
+        return 'do_dots({}, {}, filter={})'.format(
+            self.var.repr(), ', '.join([repr(attr) for attr in self.attrs]), filter
+        )
 
 
 @dataclass
@@ -142,7 +148,7 @@ class EFilter(Expression):
 
     def repr(self, arg0=''):
         return '{}({}{})'.format(
-            self.var.repr(), arg0, ''.join([', ' + arg for arg in self.args])
+            self.var.repr('True'), arg0, ''.join([', ' + arg for arg in self.args])
         )
 
 
@@ -191,7 +197,7 @@ class CFor(Stmt):
         return writer
 
     def context(self, contexter):
-        contexter + self.items
+        contexter << self.items
         with contexter.block(self.item):
             contexter << self.body
         return contexter

@@ -24,7 +24,7 @@ class Err(EitherMonoid, Error):
         if isinstance(other, Err):
             p1, _ = self.getValue()
             p2, _ = other.getValue()
-            return self if p1 > p2 else other
+            return self if p1 >= p2 else other
         else:
             return other
 
@@ -77,7 +77,8 @@ def getPos(x):
 @Parser
 def item(x):
     p, s = x
-    return Parser.m.unit((s[0], (p+1, s[1:]))) if s else Parser.m.mzero((-1, 'empty input.'))
+    return Parser.m.unit((s[0], (p+1, s[1:]))) if s else \
+        Parser.m.mzero((p+1, 'Unfinished template.'))
 
 
 def sat(predict, msg=r'{} is not satisfied.'):
@@ -92,7 +93,7 @@ def word(kw):
     @Parser
     def call(x):
         return Parser.unit(x) if x == kw else \
-            getPos >> (lambda p: Parser.mzero((p, 'expected "{}" but got "{}"'.format(kw, x))))
+            getPos >> (lambda p: Parser.mzero((p, 'Expected "{}" but got "{}"'.format(kw, x))))
     return item >> call
 
 

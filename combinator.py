@@ -13,7 +13,7 @@ def tree(s):
 
 @Parser
 def node(s):
-    return (raw + pipeline + comment + stmt)(s)
+    return (raw + rendered_pipeline + comment + stmt)(s)
 
 
 comment = bracket(word('{#'), item, word('#}')) \
@@ -24,11 +24,12 @@ raw = sat(lambda x: x[0] != r'{', r'{} is started with "{{" in raw.') \
 
 evar = name >> (lambda x: Parser.unit(EVar(x)))
 
+attr = word('.') >= item
+
 edict = \
-    evar      >> (lambda x:
-    word('.') >=
-    item      >> (lambda a:
-    Parser.unit(EDict(x, a))))
+    evar        >> (lambda x:
+    many1(attr) >> (lambda attrs:
+    Parser.unit(EDict(x, attrs))))
 
 expression = edict + evar
 
@@ -43,6 +44,11 @@ efilter = \
     Parser.unit(EFilter(x, sum(params, [])))))
 
 pipeline = \
+    expression >> (lambda x:
+    many(efilter) >> (lambda xs:
+    Parser.unit(Pipeline(x, xs))))
+
+rendered_pipeline = \
     word('{{')    >= \
     expression    >> (lambda x:
     many(efilter) >> (lambda xs:
@@ -51,7 +57,7 @@ pipeline = \
 
 @Parser
 def bools(s):
-    return (band + bor + bnot + expression)(s)
+    return (band + bor + bnot + pipeline)(s)
 
 band = \
     word('and') >= \
@@ -89,7 +95,7 @@ cfor = \
     words('{% for')         >= \
     sepby1(evar, word(',')) >> (lambda xs:
     word('in')              >=
-    expression              >> (lambda y:
+    pipeline                >> (lambda y:
     word('%}')              >=
     tree                    >> (lambda c:
     words('{% endfor %}') >=
